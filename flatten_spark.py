@@ -30,3 +30,41 @@ if __name__ == "__main__":
     df = spark.read.option("mergeSchema", "true").json("Files/data/")
     flat_df = flatten_df_final(df)
     display(flat_df)
+
+from pyspark.sql.functions import col, explode_outer
+from pyspark.sql.types import StructType, ArrayType
+
+def explode_all_arrays(df):
+    for field in df.schema.fields:
+        if isinstance(field.dataType, ArrayType):
+            df = df.withColumn(field.name, explode_outer(col(f"`{field.name}`")))
+    return df
+
+
+def flatten_structs_safe(df):
+    select_expr = []
+
+    for field in df.schema.fields:
+        field_name = field.name
+
+        # 🔹 Handle STRUCT safely
+        if isinstance(field.dataType, StructType):
+            for nested in field.dataType.fields:
+                nested_name = nested.name
+
+                select_expr.append(
+                    col(f"`{field_name}`.`{nested_name}`").alias(f"{field_name}_{nested_name}")
+                )
+        else:
+            select_expr.append(col(f"`{field_name}`"))
+
+    return df.select(*select_expr)
+
+
+def flatten_df_final_safe(df, max_levels=5):
+    for _ in range(max_levels):
+        df = explode_all_arrays(df)
+        df = flatten_structs_safe(df)
+    return df
+
+
