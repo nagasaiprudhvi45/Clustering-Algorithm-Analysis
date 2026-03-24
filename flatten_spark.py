@@ -108,7 +108,60 @@ Classification – Restricted
     ] 
 } 
 
+-------
 
+from pyspark.sql.functions import col, explode_outer
+from pyspark.sql.types import StructType, ArrayType, NullType
+
+def is_valid_array(field):
+    return (
+        isinstance(field.dataType, ArrayType)
+        and not isinstance(field.dataType.elementType, NullType)
+    )
+
+def is_valid_struct(field):
+    return isinstance(field.dataType, StructType)
+
+
+def flatten_dynamic_safe(df, max_levels=5):
+    
+    for _ in range(max_levels):
+
+        # 🔹 Step 1: explode only VALID arrays
+        for field in df.schema.fields:
+            if is_valid_array(field):
+                df = df.withColumn(
+                    field.name,
+                    explode_outer(col(f"`{field.name}`"))
+                )
+
+        # 🔹 Step 2: flatten only STRUCTS
+        select_expr = []
+        struct_found = False
+
+        for field in df.schema.fields:
+            field_name = field.name
+
+            if is_valid_struct(field):
+                struct_found = True
+
+                for nested in field.dataType.fields:
+                    nested_name = nested.name
+
+                    select_expr.append(
+                        col(f"`{field_name}`.`{nested_name}`")
+                        .alias(f"{field_name}_{nested_name}")
+                    )
+            else:
+                select_expr.append(col(f"`{field_name}`"))
+
+        df = df.select(*select_expr)
+
+        # 🔹 Stop early if no more structs
+        if not struct_found:
+            break
+
+    return df
 
 
 --------------------
