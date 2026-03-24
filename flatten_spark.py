@@ -1,3 +1,40 @@
+----
+
+from pyspark.sql.functions import col, explode_outer
+from pyspark.sql.types import StructType, ArrayType
+
+def flatten_simple(df):
+
+    for _ in range(3):  # enough for most nested JSONs
+        
+        # 🔹 explode arrays
+        for field in df.schema.fields:
+            if isinstance(field.dataType, ArrayType):
+                df = df.withColumn(field.name, explode_outer(col(field.name)))
+        
+        # 🔹 flatten structs
+        new_cols = []
+        struct_found = False
+        
+        for field in df.schema.fields:
+            if isinstance(field.dataType, StructType):
+                struct_found = True
+                for nested in field.dataType.fields:
+                    new_cols.append(
+                        col(f"{field.name}.{nested.name}")
+                        .alias(f"{field.name}_{nested.name}")
+                    )
+            else:
+                new_cols.append(col(field.name))
+        
+        df = df.select(*new_cols)
+        
+        if not struct_found:
+            break
+
+    return df
+
+----
 response = requests.get(
     api_url,
     headers=headers,
