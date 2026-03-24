@@ -1,3 +1,118 @@
+response = requests.get(
+    api_url,
+    headers=headers,
+    params={"collection": "GPS,PERSONS,TELEPHONE_NUMBERS,WORKERS"},
+    cert=(CERT_PATH, KEY_PATH)            # ← use lakehouse paths
+)
+
+# ── Load directly into Spark ─────────────────────────────
+if response.status_code == 200:
+    response_json = response.json()
+    json_data     = json.dumps([response_json])
+    rdd           = spark.sparkContext.parallelize([json_data])
+    df            = spark.read.json(rdd)
+
+    df = flatten_df_final_safe(df)
+
+    cols_to_drop = [c for c in df.columns if "." in c]
+    df = df.drop(*cols_to_drop)
+
+    # ── Apply Column Order ───────────────────────────────
+    df = df.select(column_order)
+
+    display(df)
+    df.printSchema()
+
+else:
+    print(f"❌ Error: {response.status_code} - {response.text}")
+
+{ 
+    "personId": 1243, 
+    "title": "Sir", 
+    "firstNames": "John", 
+    "lastName": "White", 
+    "gender": "Male", 
+    "dateOfBirth": "1961-10-10T00:00:00", 
+    "ageEstimated": false, 
+    "dateOfDeath": null, 
+    "ethnicity": "Bengali", 
+    "maritalStatus": null, 
+    "contactAddress": null, 
+    "telephoneNumber": [ 
+        { 
+            "telephoneNumberType": "MOBILE", 
+            "phoneNumber": "123456789", 
+            "startDate": "2022-06-17T00:00:00", 
+            "endDate": null 
+        }, 
+        { 
+            "telephoneNumberType": "HOME", 
+            "phoneNumber": "129435366", 
+            "startDate": "2022-06-17T00:00:00", 
+            "endDate": null 
+        } 
+    ], 
+    "emailAddress": "sirjohnwhite@google.com", 
+    "relationship": null, 
+    "person": [ 
+        { 
+            "personId": 1244, 
+            "title": "Sir", 
+            "firstNames": "Fred", 
+            "lastName": "White", 
+            "gender": "Male", 
+            "dateOfBirth": "2020-06-04T00:00:00", 
+            "ageEstimated": false, 
+            "dateOfDeath": null, 
+            "ethnicity": null, 
+            "maritalStatus": null, 
+            "contactAddress": "164 Packington Square, LONDON, N1 7UG", 
+ 
+ 
+ 
+ 
+ 
+Page 9 
+Classification – Restricted 
+ 
+ 
+            "telephoneNumber": [], 
+            "emailAddress": null, 
+            "relationship": "Step-parent : Step-child", 
+            "person": [], 
+            "worker": [], 
+            "gp": [] 
+        } 
+    ], 
+    "worker": [ 
+        { 
+            "firstNames": "General", 
+            "lastName": "Practitioner", 
+            "role": "GP", 
+            "roleDescription": "General Practitioner (GP)", 
+            "emailAddress": "gp@gplondon.co.uk", 
+            "phoneNumber": "2233445566", 
+            "organisationName": "Servelec HSC" 
+        } 
+    ], 
+    "gp": [ 
+        { 
+            "firstNames": "General", 
+            "lastName": "Practitioner", 
+            "role": "GP", 
+            "roleDescription": "General Practitioner (GP)", 
+            "emailAddress": "gp@gplondon.co.uk", 
+            "phoneNumber": "2233445566", 
+            "organisationName": "Servelec HSC" 
+        } 
+    ] 
+} 
+
+
+
+
+--------------------
+
 from pyspark.sql.functions import col, explode_outer
 from pyspark.sql.types import StructType, ArrayType
 
